@@ -1,5 +1,174 @@
 # 📊 Brazil Stock Dashboard
 
+A **Data Engineering project** focused on Brazilian stock market (B3) data, featuring a complete ETL pipeline and an interactive dashboard.
+
+---
+
+## 🚀 Overview
+
+This project demonstrates an end-to-end data pipeline:
+
+* 📥 Data ingestion from a market API
+* 🔄 Data transformation using Pandas
+* 🗄️ Data storage in PostgreSQL
+* 📊 Interactive visualization with Streamlit
+
+---
+
+## 🖼️ Dashboard Preview
+
+### 📈 Overview
+
+![Dashboard](./images/dashboard.png)
+
+### 📊 Price Chart with Moving Averages
+
+![Chart](./images/chart.png)
+
+> 💡 *Replace these images with real screenshots from your dashboard for best results.*
+
+---
+
+## ⚙️ Features
+
+* Fetches Brazilian stock data (PETR4, VALE3, ITUB4)
+* Calculates technical indicators:
+
+  * Moving Average (MA9)
+  * Moving Average (MA21)
+* Trend classification:
+
+  * 📈 Uptrend
+  * 📉 Downtrend
+* Interactive dashboard
+* Asset selection filter
+* Historical price visualization
+
+---
+
+## 🧱 Architecture
+
+```text
+API (Brapi)
+   ↓
+Ingestion (fetch_data.py)
+   ↓
+Transformation (transform_data.py)
+   ↓
+PostgreSQL (stock_prices)
+   ↓
+Streamlit Dashboard
+```
+
+---
+
+## 🛠️ Tech Stack
+
+* Python
+* Pandas
+* PostgreSQL
+* SQLAlchemy
+* Streamlit
+
+---
+
+## 📂 Project Structure
+
+```text
+brazil-stock-dashboard/
+│
+├── app/
+│   └── dashboard.py
+│
+├── scripts/
+│   ├── fetch_data.py
+│   ├── transform_data.py
+│   └── load_data.py
+│
+├── config/
+│   └── settings.py
+│
+├── sql/
+│   └── create_tables.sql
+│
+├── images/
+│   ├── dashboard.png
+│   └── chart.png
+│
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
+
+---
+
+## ▶️ How to Run
+
+### 1. Create a virtual environment
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 2. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Create PostgreSQL database
+
+```sql
+CREATE DATABASE stocks_db;
+```
+
+### 4. Run the pipeline
+
+```bash
+PYTHONPATH=. python scripts/load_data.py
+```
+
+### 5. Launch the dashboard
+
+```bash
+PYTHONPATH=. streamlit run app/dashboard.py
+```
+
+---
+
+## ⚠️ Notes
+
+* Data may differ from other platforms due to:
+
+  * market data delays
+  * data source differences
+  * update frequency
+  * rounding methods
+
+---
+
+## 💡 Future Improvements
+
+* Demo trading simulator (paper trading)
+* Advanced charts with Plotly
+* Real-time data updates
+* Cloud deployment (Streamlit Cloud)
+* Additional technical indicators
+
+---
+
+## 👨‍💻 Author
+
+This project was developed as part of a **Data Engineering learning journey**, focusing on building real-world pipelines and data-driven applications.
+
+
+
+
+
+
+# 📊 Brazil Stock Dashboard
+
 Projeto de **Engenharia de Dados** com dados da bolsa brasileira (B3), incluindo pipeline ETL completo e dashboard interativo.
 
 ---
