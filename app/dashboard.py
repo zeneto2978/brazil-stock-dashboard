@@ -1,24 +1,19 @@
 import streamlit as st
 import pandas as pd
-from sqlalchemy import create_engine
-from config.settings import DB_CONFIG
+import os
+import sys
+
+# garante que a raiz do projeto entre no path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from scripts.fetch_data import fetch_stock_data
+from scripts.transform_data import transform_stock_data
 
 st.set_page_config(page_title="Brazil Stock Dashboard", layout="wide")
 
 
-def get_engine():
-    connection_string = (
-        f"postgresql+psycopg2://{DB_CONFIG['user']}:{DB_CONFIG['password']}"
-        f"@{DB_CONFIG['host']}:{DB_CONFIG['port']}/{DB_CONFIG['database']}"
-    )
-    return create_engine(connection_string)
-
-
-@st.cache_data
+@st.cache_data(ttl=3600)
 def load_data():
-    from scripts.fetch_data import fetch_stock_data
-    from scripts.transform_data import transform_stock_data
-
     raw_df = fetch_stock_data()
     df = transform_stock_data(raw_df)
     return df
@@ -29,33 +24,25 @@ st.title("📈 Brazil Stock Dashboard")
 df = load_data()
 
 if df.empty:
-    st.warning("Nenhum dado encontrado.")
+    st.warning("No data found.")
     st.stop()
 
-# seleção de ativo
 symbols = sorted(df["symbol"].unique())
-selected_symbol = st.selectbox("👉🏼 Selecione o ativo", symbols)
+selected_symbol = st.selectbox("Select a stock", symbols)
 
-# filtrar dados
 filtered_df = df[df["symbol"] == selected_symbol].copy()
+filtered_df = filtered_df.sort_values("datetime")
 
-# pegar último registro
-latest = filtered_df.sort_values("datetime").iloc[-1]
+latest = filtered_df.iloc[-1]
 
-# métricas
 col1, col2, col3 = st.columns(3)
-
-col1.metric("Preço atual", f"R$ {latest['close']:.2f}")
-col2.metric("Tendência", latest["trend"])
+col1.metric("Current Price", f"R$ {latest['close']:.2f}")
+col2.metric("Trend", latest["trend"])
 col3.metric("Volume", f"{int(latest['volume'])}")
 
-# gráfico
-st.subheader("📊 Preço e Médias Móveis")
+st.subheader("Price and Moving Averages")
+chart_df = filtered_df.set_index("datetime")[["close", "ma9", "ma21"]]
+st.line_chart(chart_df)
 
-st.line_chart(
-    filtered_df.set_index("datetime")[["close", "ma9", "ma21"]]
-)
-
-# tabela
-st.subheader("📋 Dados recentes")
+st.subheader("Recent Data")
 st.dataframe(filtered_df.sort_values("datetime", ascending=False).head(20))
