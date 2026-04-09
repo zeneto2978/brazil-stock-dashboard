@@ -2,14 +2,6 @@ import pandas as pd
 
 
 def transform_stock_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Transforms raw stock data:
-    - standardizes data types
-    - sorts by symbol and datetime
-    - calculates moving averages
-    - calculates daily percentage change
-    - classifies trend
-    """
     if df.empty:
         return df
 
