@@ -1,13 +1,14 @@
 import os
 import sys
-
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
+import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# Garante que a raiz do projeto esteja no path
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# garante import correto no Streamlit Cloud
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
 
 from scripts.fetch_data import fetch_stock_data
 from scripts.transform_data import transform_stock_data
@@ -17,13 +18,13 @@ st.set_page_config(page_title="Brazil Stock Dashboard", layout="wide")
 
 
 @st.cache_data(ttl=3600)
-def load_data() -> pd.DataFrame:
+def load_data():
     raw_df = fetch_stock_data()
-    transformed_df = transform_stock_data(raw_df)
-    return transformed_df
+    df = transform_stock_data(raw_df)
+    return df
 
 
-def create_candlestick_chart(filtered_df: pd.DataFrame) -> go.Figure:
+def create_chart(df):
     fig = make_subplots(
         rows=2,
         cols=1,
@@ -34,11 +35,11 @@ def create_candlestick_chart(filtered_df: pd.DataFrame) -> go.Figure:
 
     fig.add_trace(
         go.Candlestick(
-            x=filtered_df["datetime"],
-            open=filtered_df["open"],
-            high=filtered_df["high"],
-            low=filtered_df["low"],
-            close=filtered_df["close"],
+            x=df["datetime"],
+            open=df["open"],
+            high=df["high"],
+            low=df["low"],
+            close=df["close"],
             name="Price",
         ),
         row=1,
@@ -46,87 +47,70 @@ def create_candlestick_chart(filtered_df: pd.DataFrame) -> go.Figure:
     )
 
     fig.add_trace(
-        go.Scatter(
-            x=filtered_df["datetime"],
-            y=filtered_df["ma9"],
-            mode="lines",
-            name="MA9",
-        ),
+        go.Scatter(x=df["datetime"], y=df["ma9"], name="MA9"),
         row=1,
         col=1,
     )
 
     fig.add_trace(
-        go.Scatter(
-            x=filtered_df["datetime"],
-            y=filtered_df["ma21"],
-            mode="lines",
-            name="MA21",
-        ),
+        go.Scatter(x=df["datetime"], y=df["ma21"], name="MA21"),
         row=1,
         col=1,
     )
 
     fig.add_trace(
-        go.Bar(
-            x=filtered_df["datetime"],
-            y=filtered_df["volume"],
-            name="Volume",
-        ),
+        go.Bar(x=df["datetime"], y=df["volume"], name="Volume"),
         row=2,
         col=1,
     )
 
     fig.update_layout(
-        title="Price, Moving Averages and Volume",
-        xaxis_rangeslider_visible=False,
         height=650,
-        margin=dict(l=10, r=10, t=50, b=10),
+        xaxis_rangeslider_visible=False,
+        margin=dict(l=10, r=10, t=30, b=10),
     )
-
-    fig.update_yaxes(title_text="Price (R$)", row=1, col=1)
-    fig.update_yaxes(title_text="Volume", row=2, col=1)
 
     return fig
 
 
-def main() -> None:
+def main():
     st.title("📈 Brazil Stock Dashboard")
 
     df = load_data()
 
     if df.empty:
-        st.warning("No data found.")
+        st.error("No data loaded")
         st.stop()
 
-    df["datetime"] = pd.to_datetime(df["datetime"])
+    st.write("### DEBUG — Symbols loaded:")
+    st.write(df["symbol"].value_counts())
 
     symbols = sorted(df["symbol"].unique())
+
+    if not symbols:
+        st.error("No symbols available")
+        st.stop()
+
     selected_symbol = st.selectbox("Select a stock", symbols)
 
     filtered_df = df[df["symbol"] == selected_symbol].copy()
     filtered_df = filtered_df.sort_values("datetime")
 
-    if filtered_df.empty:
-        st.warning("No data available for the selected stock.")
-        st.stop()
-
     latest = filtered_df.iloc[-1]
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Current Price", f"R$ {latest['close']:.2f}")
+
+    col1.metric("Price", f"R$ {latest['close']:.2f}")
     col2.metric("Trend", latest["trend"])
-    col3.metric("Volume", f"{int(latest['volume'])}")
+    col3.metric("Volume", int(latest["volume"]))
 
     st.subheader("📊 Professional Chart")
-    fig = create_candlestick_chart(filtered_df)
+
+    fig = create_chart(filtered_df)
     st.plotly_chart(fig, use_container_width=True)
 
     st.subheader("📋 Recent Data")
-    st.dataframe(
-        filtered_df.sort_values("datetime", ascending=False).reset_index(drop=True),
-        use_container_width=True,
-    )
+    st.dataframe(filtered_df.tail(20))
 
 
 if __name__ == "__main__":
