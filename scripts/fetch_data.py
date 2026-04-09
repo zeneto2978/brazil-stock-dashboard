@@ -7,14 +7,7 @@ import requests
 SYMBOLS = [
     "VALE3",
     "PETR4",
-    "ITUB4",
-    "BBAS3",
-    "BBDC4",
-    "B3SA3",
-    "ABEV3",
     "WEGE3",
-    "PRIO3",
-    "PETR3",
 ]
 
 BASE_URL = "https://brapi.dev/api/quote/{symbol}?range=3mo&interval=1d"
