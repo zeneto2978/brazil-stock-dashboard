@@ -11,10 +11,13 @@ lxml==6.0.2
 markdown-it-py==4.0.0
 mdurl==0.1.2
 multitasking==0.0.12
+narwhals==2.19.0
 numpy==2.4.4
+packaging==26.0
 pandas==3.0.2
 peewee==4.0.4
 platformdirs==4.9.4
+plotly==6.6.0
 protobuf==7.34.1
 psycopg2-binary==2.9.11
 pycparser==3.0
