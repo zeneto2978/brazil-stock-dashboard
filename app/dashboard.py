@@ -20,6 +20,11 @@ st.set_page_config(page_title="Brazil Stock Dashboard", layout="wide")
 @st.cache_data(ttl=3600)
 def load_data():
     raw_df = fetch_stock_data()
+
+    # 🔥 CORREÇÃO AQUI
+    if isinstance(raw_df, tuple):
+        raw_df = raw_df[0]
+
     df = transform_stock_data(raw_df)
     return df
 
