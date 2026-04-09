@@ -10,27 +10,31 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from scripts.fetch_data import fetch_stock_data
+from scripts.fetch_data import fetch_stock_data, SYMBOLS
 from scripts.transform_data import transform_stock_data
 
 
-st.set_page_config(page_title="Brazil Stock Dashboard", layout="wide")
+st.set_page_config(
+    page_title="Brazil Stock Dashboard",
+    layout="wide",
+)
 
 
 @st.cache_data(ttl=3600)
-def load_data() -> pd.DataFrame:
-    raw_df = fetch_stock_data()
+def load_data():
+    raw_df, loaded_symbols, failed_symbols = fetch_stock_data()
     transformed_df = transform_stock_data(raw_df)
-    return transformed_df
+    return transformed_df, loaded_symbols, failed_symbols
 
 
-def create_candlestick_chart(filtered_df: pd.DataFrame) -> go.Figure:
+def create_candlestick_chart(filtered_df: pd.DataFrame, symbol: str) -> go.Figure:
     fig = make_subplots(
         rows=2,
         cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.04,
+        vertical_spacing=0.06,
         row_heights=[0.72, 0.28],
+        subplot_titles=(f"{symbol} Price", "Volume"),
     )
 
     fig.add_trace(
@@ -79,11 +83,16 @@ def create_candlestick_chart(filtered_df: pd.DataFrame) -> go.Figure:
     )
 
     fig.update_layout(
-        title="Price, Moving Averages and Volume",
+        height=760,
         xaxis_rangeslider_visible=False,
-        height=700,
-        margin=dict(l=10, r=10, t=50, b=10),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        margin=dict(l=20, r=20, t=70, b=20),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+        ),
     )
 
     fig.update_yaxes(title_text="Price (R$)", row=1, col=1)
@@ -92,53 +101,106 @@ def create_candlestick_chart(filtered_df: pd.DataFrame) -> go.Figure:
     return fig
 
 
-def main() -> None:
+def format_volume(value: float) -> str:
+    return f"{int(value):,}".replace(",", ".")
+
+
+def main():
     st.title("📈 Brazil Stock Dashboard")
     st.caption("Brazilian stocks dashboard with price, moving averages and volume.")
 
-    df = load_data()
+    df, loaded_symbols, failed_symbols = load_data()
 
     if df.empty:
         st.error("No market data could be loaded.")
         st.stop()
 
     df["datetime"] = pd.to_datetime(df["datetime"])
-    symbols = sorted(df["symbol"].dropna().unique().tolist())
+    available_symbols = sorted(df["symbol"].dropna().unique().tolist())
 
-    st.sidebar.header("Dashboard Settings")
-    st.sidebar.write("Loaded symbols:")
-    for symbol in symbols:
-        count_rows = int((df["symbol"] == symbol).sum())
-        st.sidebar.write(f"- {symbol}: {count_rows} rows")
+    with st.sidebar:
+        st.header("Controls")
 
-    if len(symbols) < 3:
-        st.sidebar.warning(
-            "Some symbols were not loaded from the API. This can happen temporarily."
+        if not available_symbols:
+            st.error("No symbols available.")
+            st.stop()
+
+        selected_symbol = st.selectbox(
+            "Select a stock",
+            available_symbols,
+            index=0,
         )
 
-    if not symbols:
-        st.error("No symbols available.")
-        st.stop()
+        st.divider()
+        st.subheader("Data Status")
+        st.write(f"Requested symbols: {len(SYMBOLS)}")
+        st.write(f"Loaded symbols: {len(loaded_symbols)}")
+        st.write(f"Failed symbols: {len(failed_symbols)}")
 
-    selected_symbol = st.selectbox("Select a stock", symbols)
+        if loaded_symbols:
+            st.success("Loaded: " + ", ".join(loaded_symbols))
+
+        if failed_symbols:
+            st.warning("Failed: " + ", ".join(failed_symbols))
 
     filtered_df = df[df["symbol"] == selected_symbol].copy()
-    filtered_df = filtered_df.sort_values("datetime")
+    filtered_df = filtered_df.sort_values("datetime").reset_index(drop=True)
 
     if filtered_df.empty:
         st.warning("No data available for the selected stock.")
         st.stop()
 
     latest = filtered_df.iloc[-1]
+    previous = filtered_df.iloc[-2] if len(filtered_df) > 1 else latest
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Current Price", f"R$ {latest['close']:.2f}")
-    col2.metric("Trend", latest["trend"])
-    col3.metric("Volume", f"{int(latest['volume'])}")
+    price_delta = latest["close"] - previous["close"]
+    pct_delta = latest["daily_change_pct"] if pd.notnull(latest["daily_change_pct"]) else 0.0
 
-    st.subheader(f"📊 {selected_symbol} Chart")
-    fig = create_candlestick_chart(filtered_df)
-    st.plotly_chart(fig, use_container_width=True)
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric(
+        "Current Price",
+        f"R$ {latest['close']:.2f}",
+        f"{price_delta:.2f}",
+    )
+    col2.metric(
+        "Daily Change %",
+        f"{pct_delta:.2f}%",
+    )
+    col3.metric(
+        "Trend",
+        latest["trend"],
+    )
+    col4.metric(
+        "Volume",
+        format_volume(latest["volume"]),
+    )
+
+    st.markdown("---")
+
+    chart_col, side_col = st.columns([3.2, 1.2], gap="large")
+
+    with chart_col:
+        st.subheader(f"📊 {selected_symbol} Chart")
+        fig = create_candlestick_chart(filtered_df, selected_symbol)
+        st.plotly_chart(fig, use_container_width=True)
+
+    with side_col:
+        st.subheader("Summary")
+        st.write(f"**Symbol:** {selected_symbol}")
+        st.write(f"**Last date:** {latest['datetime'].date()}")
+        st.write(f"**Open:** R$ {latest['open']:.2f}")
+        st.write(f"**High:** R$ {latest['high']:.2f}")
+        st.write(f"**Low:** R$ {latest['low']:.2f}")
+        st.write(f"**Close:** R$ {latest['close']:.2f}")
+
+        ma9_value = "N/A" if pd.isnull(latest["ma9"]) else f"R$ {latest['ma9']:.2f}"
+        ma21_value = "N/A" if pd.isnull(latest["ma21"]) else f"R$ {latest['ma21']:.2f}"
+
+        st.write(f"**MA9:** {ma9_value}")
+        st.write(f"**MA21:** {ma21_value}")
+
+    st.markdown("---")
 
     st.subheader("📋 Recent Data")
     recent_df = (
@@ -146,7 +208,12 @@ def main() -> None:
         .reset_index(drop=True)
         .head(20)
     )
-    st.dataframe(recent_df, use_container_width=True)
+
+    recent_df = recent_df[
+        ["datetime", "open", "high", "low", "close", "volume", "ma9", "ma21", "trend"]
+    ]
+
+    st.dataframe(recent_df, use_container_width=True, hide_index=True)
 
 
 if __name__ == "__main__":

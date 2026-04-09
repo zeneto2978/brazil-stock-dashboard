@@ -2,6 +2,14 @@ import pandas as pd
 
 
 def transform_stock_data(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transforms raw stock data:
+    - standardizes data types
+    - sorts by symbol and datetime
+    - calculates moving averages
+    - calculates daily percentage change
+    - classifies trend
+    """
     if df.empty:
         return df
 
@@ -17,12 +25,14 @@ def transform_stock_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.sort_values(["symbol", "datetime"]).reset_index(drop=True)
 
     df["ma9"] = df.groupby("symbol")["close"].transform(
-        lambda x: x.rolling(window=9).mean()
+        lambda series: series.rolling(window=9).mean()
     )
 
     df["ma21"] = df.groupby("symbol")["close"].transform(
-        lambda x: x.rolling(window=21).mean()
+        lambda series: series.rolling(window=21).mean()
     )
+
+    df["daily_change_pct"] = df.groupby("symbol")["close"].pct_change() * 100
 
     df["trend"] = df.apply(
         lambda row: "Uptrend"
@@ -35,10 +45,12 @@ def transform_stock_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    from fetch_data import fetch_stock_data
+    from scripts.fetch_data import fetch_stock_data
 
-    raw_df = fetch_stock_data()
+    raw_df, loaded_symbols, failed_symbols = fetch_stock_data()
     transformed_df = transform_stock_data(raw_df)
 
     print(transformed_df.head(15))
     print(transformed_df.tail(15))
+    print("\nLoaded symbols:", loaded_symbols)
+    print("Failed symbols:", failed_symbols)
