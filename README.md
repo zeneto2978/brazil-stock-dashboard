@@ -134,7 +134,11 @@ PYTHONPATH=. python scripts/load_data.py
 ```bash
 PYTHONPATH=. streamlit run app/dashboard.py
 ```
+## Dashboard Preview
 
+![Dashboard 1](./images/dashboarddark1.png)
+
+![Dashboard 2](./images/dashboarddark2.png)
 ---
 
 ## ⚠️ Notes
