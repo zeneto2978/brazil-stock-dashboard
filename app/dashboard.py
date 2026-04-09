@@ -12,72 +12,35 @@ if ROOT_DIR not in sys.path:
 
 from scripts.fetch_data import fetch_stock_data
 from scripts.transform_data import transform_stock_data
-from scripts.load_data import load_to_postgres, read_from_postgres
 
-st.set_page_config(
-    page_title="Painel B3",
-    page_icon="📈",
-    layout="wide",
-)
-
-# ── Estilos ───────────────────────────────────────────────────────────────────
-st.markdown("""
-<style>
-[data-testid="metric-container"] { background:#f8f9fa; border-radius:8px; padding:12px; }
-.alert-box { padding:10px 16px; border-radius:6px; font-weight:500; margin-bottom:8px; }
-.alert-sell { background:#fff0f0; color:#c0392b; border-left:4px solid #c0392b; }
-.alert-buy  { background:#f0fff4; color:#196f3d; border-left:4px solid #27ae60; }
-</style>
-""", unsafe_allow_html=True)
+st.set_page_config(page_title="Brazil Stock Dashboard", layout="wide")
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
-def fmt_volume(v: float) -> str:
-    if v >= 1_000_000_000:
-        return f"{v/1_000_000_000:.1f}B"
-    if v >= 1_000_000:
-        return f"{v/1_000_000:.1f}M"
-    if v >= 1_000:
-        return f"{v/1_000:.1f}K"
-    return str(int(v))
-
-
-# ── Carregamento de dados ─────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
-def load_data(symbols_str: str) -> pd.DataFrame:
-    """
-    Recebe os símbolos como string (ex: "VALE3,PETR4,ITUB4") para que o
-    cache do Streamlit funcione corretamente — listas não são serializadas
-    de forma confiável como chave de cache.
+def load_data() -> pd.DataFrame:
+    raw_result = fetch_stock_data()
 
-    Tenta ler do banco primeiro. Se não tiver dados, busca na API.
-    """
-    symbols = [s.strip() for s in symbols_str.split(",") if s.strip()]
+    # Compatibilidade:
+    # - se fetch_stock_data() retornar só DataFrame
+    # - ou se retornar (DataFrame, loaded_symbols, failed_symbols)
+    if isinstance(raw_result, tuple):
+        raw_df = raw_result[0]
+    else:
+        raw_df = raw_result
 
-    df = read_from_postgres(symbols)
-
-    if df.empty:
-        with st.spinner("Buscando dados na Brapi..."):
-            raw = fetch_stock_data(symbols=symbols)
-            df = transform_stock_data(raw)
-            if not df.empty:
-                load_to_postgres(df)
-
+    df = transform_stock_data(raw_df)
     return df
 
 
-# ── Gráfico principal ─────────────────────────────────────────────────────────
 def create_chart(df: pd.DataFrame) -> go.Figure:
     fig = make_subplots(
-        rows=3,
+        rows=2,
         cols=1,
         shared_xaxes=True,
-        row_heights=[0.55, 0.2, 0.25],
-        subplot_titles=("Candlestick + Médias Móveis", "Volume", "RSI (14)"),
-        vertical_spacing=0.06,
+        row_heights=[0.7, 0.3],
+        vertical_spacing=0.05,
     )
 
-    # --- Candlestick ---
     fig.add_trace(
         go.Candlestick(
             x=df["datetime"],
@@ -85,157 +48,116 @@ def create_chart(df: pd.DataFrame) -> go.Figure:
             high=df["high"],
             low=df["low"],
             close=df["close"],
-            name="Preço",
-            increasing_line_color="#27ae60",
-            decreasing_line_color="#c0392b",
+            name="Price",
         ),
-        row=1, col=1,
+        row=1,
+        col=1,
     )
 
     fig.add_trace(
         go.Scatter(
-            x=df["datetime"], y=df["ma9"],
-            name="MA9", line=dict(color="#e67e22", width=1.5),
+            x=df["datetime"],
+            y=df["ma9"],
+            mode="lines",
+            name="MA9",
         ),
-        row=1, col=1,
+        row=1,
+        col=1,
     )
 
     fig.add_trace(
         go.Scatter(
-            x=df["datetime"], y=df["ma21"],
-            name="MA21", line=dict(color="#2980b9", width=1.5),
+            x=df["datetime"],
+            y=df["ma21"],
+            mode="lines",
+            name="MA21",
         ),
-        row=1, col=1,
+        row=1,
+        col=1,
     )
 
-    # --- Volume ---
-    colors = [
-        "#27ae60" if c >= o else "#c0392b"
-        for c, o in zip(df["close"], df["open"])
-    ]
     fig.add_trace(
         go.Bar(
-            x=df["datetime"], y=df["volume"],
-            name="Volume", marker_color=colors, showlegend=False,
+            x=df["datetime"],
+            y=df["volume"],
+            name="Volume",
         ),
-        row=2, col=1,
+        row=2,
+        col=1,
     )
-
-    # --- RSI ---
-    fig.add_trace(
-        go.Scatter(
-            x=df["datetime"], y=df["rsi"],
-            name="RSI", line=dict(color="#8e44ad", width=1.5),
-        ),
-        row=3, col=1,
-    )
-
-    # Zonas RSI
-    for y_val, color, label in [(70, "rgba(192,57,43,0.12)", "Sobrecomprado"),
-                                 (30, "rgba(39,174,96,0.12)", "Sobrevendido")]:
-        fig.add_hline(
-            y=y_val, line_dash="dash",
-            line_color="#c0392b" if y_val == 70 else "#27ae60",
-            line_width=1, row=3, col=1,
-            annotation_text=label,
-            annotation_position="right",
-        )
 
     fig.update_layout(
-        height=750,
+        height=700,
         xaxis_rangeslider_visible=False,
-        legend=dict(orientation="h", y=1.02, x=0),
-        margin=dict(t=40, b=10),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        margin=dict(l=20, r=20, t=40, b=20),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="left",
+            x=0,
+        ),
     )
-    fig.update_yaxes(gridcolor="#f0f0f0")
+
+    fig.update_yaxes(title_text="Price (R$)", row=1, col=1)
+    fig.update_yaxes(title_text="Volume", row=2, col=1)
 
     return fig
 
 
-# ── App principal ─────────────────────────────────────────────────────────────
-def main():
-    st.title("📈 Painel de Ativos — B3")
+def main() -> None:
+    st.title("📈 Brazil Stock Dashboard")
+    st.caption("Brazilian stocks dashboard with price, moving averages and volume.")
 
-    # Sidebar: configuração de ativos
-    with st.sidebar:
-        st.header("⚙️ Configurações")
-
-        simbolos_input = st.text_input(
-            "Ativos (separados por vírgula)",
-            value="VALE3, PETR4, ITUB4",
-            help="Ex: VALE3, MGLU3, BBAS3",
-        )
-        simbolos = [s.strip().upper() for s in simbolos_input.split(",") if s.strip()]
-
-        atualizar = st.button("🔄 Atualizar dados", use_container_width=True)
-        if atualizar:
-            st.cache_data.clear()
-            st.rerun()
-
-        st.divider()
-        st.caption("Dados via Brapi · Armazenados em PostgreSQL")
-
-    # Carrega dados — passa como string para o cache funcionar corretamente
-    df = load_data(",".join(simbolos))
+    df = load_data()
 
     if df.empty:
-        st.error("Nenhum dado disponível. Verifique os símbolos ou a conexão com a API.")
+        st.error("No data loaded.")
         st.stop()
 
-    # Seleção de ativo
-    ativos_disponiveis = sorted(df["symbol"].unique().tolist())
-    ativo_selecionado = st.selectbox("Selecione o ativo", ativos_disponiveis)
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    symbols = sorted(df["symbol"].dropna().unique().tolist())
 
-    filtrado = df[df["symbol"] == ativo_selecionado].sort_values("datetime").copy()
-    latest = filtrado.iloc[-1]
-    anterior = filtrado.iloc[-2] if len(filtrado) > 1 else latest
+    if not symbols:
+        st.error("No symbols available.")
+        st.stop()
 
-    # ── Alertas RSI ──────────────────────────────────────────────────────────
-    if latest["rsi_signal"] == "Sobrecomprado":
-        st.markdown(
-            f'<div class="alert-box alert-sell">🔴 RSI em {latest["rsi"]:.1f} — '
-            f'<b>{ativo_selecionado}</b> pode estar sobrecomprado. Atenção para possível correção.</div>',
-            unsafe_allow_html=True,
-        )
-    elif latest["rsi_signal"] == "Sobrevendido":
-        st.markdown(
-            f'<div class="alert-box alert-buy">🟢 RSI em {latest["rsi"]:.1f} — '
-            f'<b>{ativo_selecionado}</b> pode estar sobrevendido. Possível oportunidade de entrada.</div>',
-            unsafe_allow_html=True,
-        )
+    selected_symbol = st.selectbox("Select a stock", symbols)
 
-    # ── Métricas ─────────────────────────────────────────────────────────────
-    col1, col2, col3, col4, col5 = st.columns(5)
+    filtered_df = df[df["symbol"] == selected_symbol].copy()
+    filtered_df = filtered_df.sort_values("datetime").reset_index(drop=True)
 
-    col1.metric(
-        "Preço atual",
-        f"R$ {latest['close']:.2f}",
-        delta=f"{latest['daily_change_pct']:.2f}%",
-    )
-    col2.metric(
-        "Variação diária",
-        f"{latest['daily_change_pct']:.2f}%",
-        delta=f"{latest['daily_change_pct'] - anterior['daily_change_pct']:.2f}% vs ontem",
-    )
-    col3.metric("Tendência", latest["trend"])
-    col4.metric("RSI", f"{latest['rsi']:.1f}", delta=latest["rsi_signal"])
-    col5.metric("Volume", fmt_volume(latest["volume"]))
+    if filtered_df.empty:
+        st.warning(f"No data available for {selected_symbol}.")
+        st.stop()
 
-    # ── Gráfico ──────────────────────────────────────────────────────────────
-    st.subheader("📊 Gráfico")
-    fig = create_chart(filtrado)
-    st.plotly_chart(fig, use_container_width=True)
+    latest = filtered_df.iloc[-1]
 
-    # ── Tabela recente ────────────────────────────────────────────────────────
-    with st.expander("📋 Dados recentes (últimos 20 pregões)"):
-        colunas = ["datetime", "open", "high", "low", "close", "volume",
-                   "ma9", "ma21", "rsi", "rsi_signal", "trend", "daily_change_pct"]
-        st.dataframe(
-            filtrado[colunas].tail(20).sort_values("datetime", ascending=False),
-            use_container_width=True,
-        )
+    if len(filtered_df) > 1:
+        previous = filtered_df.iloc[-2]
+        price_delta = latest["close"] - previous["close"]
+    else:
+        price_delta = 0.0
+
+    if "daily_change_pct" in filtered_df.columns and pd.notnull(latest["daily_change_pct"]):
+        pct_delta = latest["daily_change_pct"]
+    else:
+        pct_delta = 0.0
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Price", f"R$ {latest['close']:.2f}", f"{price_delta:.2f}")
+    col2.metric("Change %", f"{pct_delta:.2f}%")
+    col3.metric("Trend", str(latest["trend"]))
+    col4.metric("Volume", f"{int(latest['volume']):,}".replace(",", "."))
+
+    st.subheader("📊 Chart")
+    fig = create_chart(filtered_df)
+    st.plotly_chart(fig, width="stretch")
+
+    st.subheader("📋 Recent Data")
+    recent_df = filtered_df.tail(20).sort_values("datetime", ascending=False).reset_index(drop=True)
+    st.dataframe(recent_df, width="stretch", hide_index=True)
 
 
 if __name__ == "__main__":
