@@ -44,11 +44,16 @@ def fmt_volume(v: float) -> str:
 
 # ── Carregamento de dados ─────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
-def load_data(symbols: list) -> pd.DataFrame:
+def load_data(symbols_str: str) -> pd.DataFrame:
     """
-    Tenta ler do banco primeiro.
-    Se não tiver dados, busca na API, transforma e salva.
+    Recebe os símbolos como string (ex: "VALE3,PETR4,ITUB4") para que o
+    cache do Streamlit funcione corretamente — listas não são serializadas
+    de forma confiável como chave de cache.
+
+    Tenta ler do banco primeiro. Se não tiver dados, busca na API.
     """
+    symbols = [s.strip() for s in symbols_str.split(",") if s.strip()]
+
     df = read_from_postgres(symbols)
 
     if df.empty:
@@ -172,8 +177,8 @@ def main():
         st.divider()
         st.caption("Dados via Brapi · Armazenados em PostgreSQL")
 
-    # Carrega dados
-    df = load_data(simbolos)
+    # Carrega dados — passa como string para o cache funcionar corretamente
+    df = load_data(",".join(simbolos))
 
     if df.empty:
         st.error("Nenhum dado disponível. Verifique os símbolos ou a conexão com a API.")
