@@ -16,9 +16,11 @@ def get_engine():
 
 @st.cache_data
 def load_data():
-    engine = get_engine()
-    query = "SELECT * FROM stock_prices"
-    df = pd.read_sql(query, engine)
+    from scripts.fetch_data import fetch_stock_data
+    from scripts.transform_data import transform_stock_data
+
+    raw_df = fetch_stock_data()
+    df = transform_stock_data(raw_df)
     return df
 
 
