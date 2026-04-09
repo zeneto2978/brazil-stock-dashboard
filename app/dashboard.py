@@ -10,7 +10,7 @@ ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
-from scripts.fetch_data import fetch_stock_data, SYMBOLS
+from scripts.fetch_data import fetch_stock_data
 from scripts.transform_data import transform_stock_data
 
 
@@ -118,30 +118,25 @@ def main():
     df["datetime"] = pd.to_datetime(df["datetime"])
     available_symbols = sorted(df["symbol"].dropna().unique().tolist())
 
-    with st.sidebar:
-        st.header("Controls")
+    if not available_symbols:
+        st.error("No symbols available.")
+        st.stop()
 
-        if not available_symbols:
-            st.error("No symbols available.")
-            st.stop()
-
-        selected_symbol = st.selectbox(
-            "Select a stock",
-            available_symbols,
-            index=0,
+    if failed_symbols:
+        st.warning(
+            "Some symbols could not be loaded from the API at this moment: "
+            + ", ".join(failed_symbols)
         )
 
-        st.divider()
-        st.subheader("Data Status")
-        st.write(f"Requested symbols: {len(SYMBOLS)}")
-        st.write(f"Loaded symbols: {len(loaded_symbols)}")
-        st.write(f"Failed symbols: {len(failed_symbols)}")
+    top_col1, top_col2 = st.columns([2, 1])
 
-        if loaded_symbols:
-            st.success("Loaded: " + ", ".join(loaded_symbols))
+    with top_col1:
+        selected_symbol = st.selectbox("Select a stock", available_symbols, index=0)
 
-        if failed_symbols:
-            st.warning("Failed: " + ", ".join(failed_symbols))
+    with top_col2:
+        st.write("")
+        st.write("")
+        st.info(f"Loaded assets: {len(available_symbols)}")
 
     filtered_df = df[df["symbol"] == selected_symbol].copy()
     filtered_df = filtered_df.sort_values("datetime").reset_index(drop=True)
@@ -178,14 +173,14 @@ def main():
 
     st.markdown("---")
 
-    chart_col, side_col = st.columns([3.2, 1.2], gap="large")
+    chart_col, summary_col = st.columns([3.2, 1.2], gap="large")
 
     with chart_col:
         st.subheader(f"📊 {selected_symbol} Chart")
         fig = create_candlestick_chart(filtered_df, selected_symbol)
         st.plotly_chart(fig, use_container_width=True)
 
-    with side_col:
+    with summary_col:
         st.subheader("Summary")
         st.write(f"**Symbol:** {selected_symbol}")
         st.write(f"**Last date:** {latest['datetime'].date()}")
