@@ -18,16 +18,7 @@ st.set_page_config(page_title="Brazil Stock Dashboard", layout="wide")
 
 @st.cache_data(ttl=3600)
 def load_data() -> pd.DataFrame:
-    raw_result = fetch_stock_data()
-
-    # Compatibilidade:
-    # - se fetch_stock_data() retornar só DataFrame
-    # - ou se retornar (DataFrame, loaded_symbols, failed_symbols)
-    if isinstance(raw_result, tuple):
-        raw_df = raw_result[0]
-    else:
-        raw_df = raw_result
-
+    raw_df = fetch_stock_data()
     df = transform_stock_data(raw_df)
     return df
 
@@ -37,7 +28,7 @@ def create_chart(df: pd.DataFrame) -> go.Figure:
         rows=2,
         cols=1,
         shared_xaxes=True,
-        row_heights=[0.7, 0.3],
+        row_heights=[0.72, 0.28],
         vertical_spacing=0.05,
     )
 
@@ -87,9 +78,9 @@ def create_chart(df: pd.DataFrame) -> go.Figure:
     )
 
     fig.update_layout(
-        height=700,
+        height=720,
         xaxis_rangeslider_visible=False,
-        margin=dict(l=20, r=20, t=40, b=20),
+        margin=dict(l=20, r=20, t=30, b=20),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -139,13 +130,9 @@ def main() -> None:
     else:
         price_delta = 0.0
 
-    if "daily_change_pct" in filtered_df.columns and pd.notnull(latest["daily_change_pct"]):
-        pct_delta = latest["daily_change_pct"]
-    else:
-        pct_delta = 0.0
+    pct_delta = latest["daily_change_pct"] if pd.notnull(latest["daily_change_pct"]) else 0.0
 
     col1, col2, col3, col4 = st.columns(4)
-
     col1.metric("Price", f"R$ {latest['close']:.2f}", f"{price_delta:.2f}")
     col2.metric("Change %", f"{pct_delta:.2f}%")
     col3.metric("Trend", str(latest["trend"]))
@@ -156,7 +143,11 @@ def main() -> None:
     st.plotly_chart(fig, width="stretch")
 
     st.subheader("📋 Recent Data")
-    recent_df = filtered_df.tail(20).sort_values("datetime", ascending=False).reset_index(drop=True)
+    recent_df = (
+        filtered_df.tail(20)
+        .sort_values("datetime", ascending=False)
+        .reset_index(drop=True)
+    )
     st.dataframe(recent_df, width="stretch", hide_index=True)
 
 
