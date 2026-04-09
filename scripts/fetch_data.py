@@ -2,7 +2,7 @@ import time
 import pandas as pd
 import requests
 
-SYMBOLS = ["VALE3", "PETR4", "WEGE3"]
+SYMBOLS = ["VALE3", "PETR4", "ITUB4"]
 
 BASE_URL = "https://brapi.dev/api/quote/{symbol}?range=3mo&interval=1d"
 
